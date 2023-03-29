@@ -10,45 +10,33 @@ import java.util.concurrent.Executors;
 
 public class Server {
 
-    static ExecutorService executeIt = Executors.newFixedThreadPool(200); //максимальное число пользователей ограничено
-    private ArrayList<ClientThread> clients = new ArrayList<ClientThread>();
+    public static ArrayList<ClientThread> clients = new ArrayList<>();
 
-
-    static int port = 8080;
-
-    public Server() throws IOException {
-
-        // стартуем сервер на порту
-        ServerSocket server = new ServerSocket(port);
+    public static void main(String[] args) {
+        ServerSocket serverSocket;
+        Socket clientSocket;
+        ExecutorService executeIt = Executors.newFixedThreadPool(200); //максимальное число пользователей ограничено
+        Config conf = new Config();
 
         try {
-            System.out.println("Server starts at port: " + port);
-
-            // бесконечный цикл для обработки всех поступающих запросов
+            serverSocket = new ServerSocket(conf.PORT);
+            System.out.println("Server starts on port: " + conf.PORT);
+            LoggerClass.WriteMsg("Server starts on port: " + conf.PORT);
             while (true) {
-                Socket newClient = server.accept();
-                // получаем запрос от клиента и создаем отдельный runnable поток
-                ClientThread client = new ClientThread(newClient, this);
+                clientSocket = serverSocket.accept();
+                System.out.println("Client accepted. Socket " + clientSocket.getPort());
+                LoggerClass.WriteMsg("Client accepted. Socket " + clientSocket.getPort());
+                ClientThread client = new ClientThread(clientSocket);
                 clients.add(client);
                 executeIt.execute(client);
+                System.out.println(clients.toString());
 
             }
+
         } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-
-    // отправляем сообщение всем клиентам
-    public void sendMessageToAllClients(String msg) {
-        for (ClientThread o : clients) {
-            o.sendMsg(msg);
+            LoggerClass.WriteMsg("Server error: " + e);
         }
 
-    }
-
-    // удаляем клиента из коллекции при выходе из чата
-    public void removeClient(ClientThread client) {
-        clients.remove(client);
     }
 }
+

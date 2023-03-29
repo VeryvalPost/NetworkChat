@@ -4,77 +4,98 @@ import java.io.*;
 import java.net.Socket;
 import java.util.Scanner;
 
-
 public class ClientThread implements Runnable {
 
-    private Server server;
-    private Socket newClient;
-    private PrintWriter toClient;
-    private BufferedReader fromClient;
+    public Socket clientSocket;
+    BufferedReader in;
+    PrintWriter out;
+    Scanner scanner = new Scanner(System.in);
+    String name;
 
+    public ClientThread(Socket clientSocket) {
+        this.clientSocket = clientSocket;
 
-    public ClientThread(Socket newClient, Server server) {
-
-        try {
-            this.newClient = newClient;
-            this.server = server;
-            // запуск каналов передачи данных клиентского сокета
-            this.toClient = new PrintWriter(newClient.getOutputStream(), true);
-            this.fromClient = new BufferedReader(new InputStreamReader(newClient.getInputStream()));
-        } catch (IOException ex) {
-            ex.printStackTrace();
-        }
     }
-        @Override
-        public void run() {
 
-            try {
-                // инициализация нового клиента
-                System.out.println("Connected user at " + newClient.getRemoteSocketAddress());
-                String name = fromClient.readLine();
-                System.out.println("Name of user: " + name);
-                toClient.flush();
-                toClient.print("You enter the chat. To end the conversation, type \"/exit\"\n");
-                System.out.println("You enter the chat: " + name);
-                System.out.println("можно писать");
-                Scanner scanner = new Scanner(System.in);
-                String serverMessage = scanner.nextLine();
-                toClient.write(serverMessage);
-                toClient.flush();
-                toClient.print(serverMessage+ "print");
-                toClient.flush();
+    public void run() {
+        try {
+            out = new PrintWriter(clientSocket.getOutputStream());
+            in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+            setName();
+            sendMsg(getName() + ", welcome to chat!");
+            sendToAll(getName() + " connected to chat!");
 
-                // постоянная работа с клиентом в цикле чтение
-                while (true) {
-                    if (fromClient.ready()) {
-                        String clientMessage = fromClient.readLine();
+            // создаем поток, ответственый за отправку сообщенией
+            Thread sender = new Thread(new Runnable() {
+                String msg;
 
-                        if (clientMessage.equalsIgnoreCase("\"/exit\"")) {
-                            break;
+                @Override
+                public void run() {
+                    while (true) {
+                        msg = scanner.nextLine();
+                        sendToAll("Server message: " + msg);
+                        LoggerClass.WriteMsg("Server: "+ msg);
+                        out.flush();
+                    }
+                }
+            });
+
+            sender.start();
+
+            // создаем поток, ответственый за приемку сообщенией
+            Thread receive = new Thread(new Runnable() {
+                String msg;
+
+                @Override
+                public void run() {
+                    try {
+                        msg = in.readLine();
+                        while (msg != null) {
+                            String[] receiveMsg = msg.split(" ", 2);
+                            sendToAll(receiveMsg[0] + " :" + receiveMsg[1]);   // принимая сообщение от кого-либо, сервер отправляет сообщение всем.
+                            LoggerClass.WriteMsg(receiveMsg[0]+": "+ msg);
+                            msg = in.readLine();
                         }
+                        System.out.println("Client disconnect");
+                        out.close();
+                        clientSocket.close();
 
-                        // выводим в консоль сообщение (для теста)
-                        System.out.println(clientMessage);
-                        // отправляем данное сообщение всем клиентам
-                        server.sendMessageToAllClients(clientMessage);
+                    } catch (IOException e) {
+                        LoggerClass.WriteMsg("Recieve msg error: " + e);
                     }
 
-
                 }
+            });
+            receive.start();
 
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+
+        } catch (IOException e) {
+            LoggerClass.WriteMsg("Client thread error: " + e);
         }
+    }
 
     // отправляем сообщение
     public void sendMsg(String msg) {
         try {
-            toClient.print(msg+"\n");
-            toClient.flush();
-        } catch (Exception ex) {
-            ex.printStackTrace();
+            out.println(msg);
+            out.flush();
+        } catch (Exception e) {
+            LoggerClass.WriteMsg("Send msg error: " + e);
         }
     }
 
+    public void setName() throws IOException {
+        name = in.readLine();
+        out.flush();
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void sendToAll(String msg) {
+        for (ClientThread o : Server.clients) {
+            o.sendMsg(msg);
+        }
+    }
 }
