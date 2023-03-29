@@ -73,7 +73,7 @@ public class Client {
                             }
 
                             msg = in.readLine();
-                            logClient.WriteMsg("Input message from " + receiveMsg[0] + " :"+ receiveMsg[0]);
+                            logClient.WriteMsg("Input message from " + receiveMsg[0] + " :"+ receiveMsg[1]);
                         }
                         System.out.println("Server out of service"); // если сервер недоступен
                         in.close();
